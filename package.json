@@ -1,0 +1,15 @@
+{
+  "name": "projeto-postagens",
+  "version": "1.0.0",
+  "description": "Projeto de postagens de mensagens - Matéria de Backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jean Alves Rocha",
+  "license": "ISC",
+  "dependencies": {
+    "mongodb": "^6.20.0"
+  }
+}
