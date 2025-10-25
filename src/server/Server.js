@@ -10,9 +10,9 @@ const Router = require('../routes/Router');
 const Logger = require('../utils/Logger');
 
 class Server {
-    constructor(config, dbConfig) {
-        this.port = config.port;
-        this.database = new Database(dbConfig);
+    constructor() {
+        this.port = 3000;
+        this.database = new Database();
         this.server = null;
     }
 

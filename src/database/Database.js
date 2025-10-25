@@ -1,10 +1,17 @@
-const { MongoClient } = require('mongodb');
+const  MongoClient  = {
+    url: 'mongodb://127.0.0.1:27017',
+    dbName: 'blog_db',
+    options: {
+        serverSelectionTimeoutMS: 3000,
+        connectTimeoutMS: 3000
+    }
+};
 
 class Database {
-    constructor(config) {
-        this.url = config.url;
-        this.dbName = config.dbName;
-        this.options = config.options;
+    constructor() {
+        this.url = MongoClient.url;
+        this.dbName = MongoClient.dbName;
+        this.options = MongoClient.options;
         this.client = null;
         this.db = null;
     }
