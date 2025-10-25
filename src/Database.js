@@ -1,4 +1,6 @@
-const  MongoClient  = {
+const { MongoClient } = require('mongodb');
+
+const MongoConfig = {
     url: 'mongodb://127.0.0.1:27017',
     dbName: 'blog_db',
     options: {
@@ -9,9 +11,9 @@ const  MongoClient  = {
 
 class Database {
     constructor() {
-        this.url = MongoClient.url;
-        this.dbName = MongoClient.dbName;
-        this.options = MongoClient.options;
+        this.url = MongoConfig.url;
+        this.dbName = MongoConfig.dbName;
+        this.options = MongoConfig.options;
         this.client = null;
         this.db = null;
     }

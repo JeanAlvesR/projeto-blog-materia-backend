@@ -1,5 +1,74 @@
-const Logger = require('../utils/Logger');
+const http = require('http');
+const Database = require('./Database');
+const UsuarioController = require('./UsuarioController');
+const PostagemController = require('./PostagemController');
+const ComentarioController = require('./ComentarioController');
+const Logger = require('./Logger');
 
+class Server {
+    constructor() {
+        this.port = 3000;
+        this.database = new Database();
+        this.server = null;
+    }
+
+    async start() {
+        await this.database.connect();
+
+        const usuarioController = new UsuarioController(this.database);
+        const postagemController = new PostagemController(this.database);
+        const comentarioController = new ComentarioController(this.database);
+
+        const router = new Router(usuarioController, postagemController, comentarioController);
+
+        this.server = http.createServer((req, res) => {
+            router.handle(req, res);
+        });
+
+        this.server.listen(this.port, () => {
+            this.showBanner();
+        });
+
+        this.setupGracefulShutdown();
+    }
+
+    showBanner() {
+        console.log(`\n🚀 Servidor rodando na porta ${this.port}`);
+        console.log(`📝 Acesse: http://localhost:${this.port}`);
+        console.log('\n📦 3 Coleções: usuarios, postagens, comentarios\n');
+        console.log('💡 Rotas - USUÁRIOS:');
+        console.log('   GET    /usuarios               - Listar todos');
+        console.log('   POST   /usuarios               - Criar usuário');
+        console.log('   GET    /usuarios/:id           - Buscar por ID');
+        console.log('   DELETE /usuarios/:id           - Deletar');
+        console.log('\n💡 Rotas - POSTAGENS:');
+        console.log('   GET    /postagens              - Listar todas');
+        console.log('   POST   /postagens              - Criar postagem');
+        console.log('   GET    /postagens/buscar       - Buscar por termo');
+        console.log('   GET    /postagens/:id          - Buscar por ID');
+        console.log('   PUT    /postagens/:id          - Atualizar');
+        console.log('   POST   /postagens/:id/like     - Dar like');
+        console.log('   DELETE /postagens/:id          - Deletar');
+        console.log('\n💡 Rotas - COMENTÁRIOS:');
+        console.log('   GET    /postagens/:id/comentarios  - Listar');
+        console.log('   POST   /comentarios                - Criar');
+        console.log('   DELETE /comentarios/:id            - Deletar\n');
+        
+        Logger.info('Servidor iniciado com sucesso');
+    }
+
+    setupGracefulShutdown() {
+        process.on('SIGINT', async () => {
+            console.log('\n\n⏳ Encerrando servidor...');
+            Logger.info('Servidor encerrado');
+            if (this.server) {
+                this.server.close();
+            }
+            await this.database.close();
+            process.exit(0);
+        });
+    }
+}
 class Router {
     constructor(usuarioController, postagemController, comentarioController) {
         this.usuarioController = usuarioController;
@@ -27,14 +96,14 @@ class Router {
     parseUrl(url) {
         const [path, queryString] = url.split('?');
         const query = {};
-        
+
         if (queryString) {
             queryString.split('&').forEach(param => {
                 const [key, value] = param.split('=');
                 query[decodeURIComponent(key)] = decodeURIComponent(value || '');
             });
         }
-        
+
         return { path, query };
     }
 
@@ -50,7 +119,7 @@ class Router {
     }
 
     getStatusCode(errorMessage) {
-        if (errorMessage.includes('obrigatório') || 
+        if (errorMessage.includes('obrigatório') ||
             errorMessage.includes('inválido') ||
             errorMessage.includes('não pode ter mais') ||
             errorMessage.includes('Email já cadastrado') ||
@@ -185,5 +254,4 @@ class Router {
         }
     }
 }
-
-module.exports = Router;
+module.exports = Server;

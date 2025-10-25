@@ -1,6 +1,65 @@
 const { ObjectId } = require('mongodb');
-const Postagem = require('../models/Postagem');
-const Logger = require('../utils/Logger');
+const Postagem = require('./Postagem');
+const Logger = require('./Logger');
+
+class PostagemController {
+    constructor(dataBase) {
+        this.postagemService = new PostagemService(dataBase);
+    }
+
+    async criar(dados) {
+        const { usuarioId, conteudo } = dados;
+        const postagem = await this.postagemService.criar(usuarioId, conteudo);
+        return {
+            mensagem: 'Postagem publicada com sucesso!',
+            postagem
+        };
+    }
+
+    async listarTodas() {
+        const postagens = await this.postagemService.listarTodas();
+        return {
+            total: postagens.length,
+            postagens
+        };
+    }
+
+    async buscarPorTermo(termo) {
+        const postagens = await this.postagemService.buscarPorTermo(termo);
+        return {
+            termo,
+            total: postagens.length,
+            postagens
+        };
+    }
+
+    async buscarPorId(id) {
+        return await this.postagemService.buscarPorId(id);
+    }
+
+    async atualizar(id, dados) {
+        const postagem = await this.postagemService.atualizar(id, dados);
+        return {
+            mensagem: 'Postagem atualizada com sucesso!',
+            postagem
+        };
+    }
+
+    async deletar(id) {
+        await this.postagemService.deletar(id);
+        return {
+            mensagem: 'Postagem deletada com sucesso!'
+        };
+    }
+
+    async darLike(id) {
+        const postagem = await this.postagemService.darLike(id);
+        return {
+            mensagem: 'Like adicionado com sucesso!',
+            postagem
+        };
+    }
+}
 
 class PostagemService {
     constructor(database) {
@@ -175,7 +234,7 @@ class PostagemService {
             }
 
             const camposPermitidos = {};
-            
+
             if (dados.conteudo) {
                 if (dados.conteudo.length > 280) {
                     throw new Error('O conteúdo não pode ter mais de 280 caracteres');
@@ -260,4 +319,4 @@ class PostagemService {
     }
 }
 
-module.exports = PostagemService;
+module.exports = PostagemController;

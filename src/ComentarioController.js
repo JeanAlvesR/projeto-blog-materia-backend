@@ -1,6 +1,36 @@
 const { ObjectId } = require('mongodb');
-const Comentario = require('../models/Comentario');
-const Logger = require('../utils/Logger');
+const Comentario = require('./Comentario');
+const Logger = require('./Logger');
+
+class ComentarioController {
+    constructor(dataBase) {
+        this.comentarioService = new ComentarioService(dataBase);
+    }
+
+    async criar(dados) {
+        const { postagemId, usuarioId, conteudo } = dados;
+        const comentario = await this.comentarioService.criar(postagemId, usuarioId, conteudo);
+        return {
+            mensagem: 'Comentário criado com sucesso!',
+            comentario
+        };
+    }
+
+    async listarPorPostagem(postagemId) {
+        const comentarios = await this.comentarioService.listarPorPostagem(postagemId);
+        return {
+            total: comentarios.length,
+            comentarios
+        };
+    }
+
+    async deletar(id) {
+        await this.comentarioService.deletar(id);
+        return {
+            mensagem: 'Comentário deletado com sucesso!'
+        };
+    }
+}
 
 class ComentarioService {
     constructor(database) {
@@ -54,8 +84,8 @@ class ComentarioService {
             const comentarios = await this.database
                 .getCollection(this.collection)
                 .aggregate([
-                    { 
-                        $match: { postagemId: new ObjectId(postagemId) } 
+                    {
+                        $match: { postagemId: new ObjectId(postagemId) }
                     },
                     {
                         $lookup: {
@@ -112,4 +142,4 @@ class ComentarioService {
     }
 }
 
-module.exports = ComentarioService;
+module.exports = ComentarioController;

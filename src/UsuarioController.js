@@ -1,6 +1,44 @@
 const { ObjectId } = require('mongodb');
-const Usuario = require('../models/Usuario');
-const Logger = require('../utils/Logger');
+const Usuario = require('./Usuario');
+const Logger = require('./Logger');
+
+class UsuarioController {
+    constructor(dataBase) {
+        this.usuarioService = new UsuarioService(dataBase);
+    }
+
+    async criar(dados) {
+        const { nome, email, senha } = dados;
+        const usuario = await this.usuarioService.criar(nome, email, senha);
+        return {
+            mensagem: 'Usuário criado com sucesso!',
+            usuario
+        };
+    }
+
+    async listarTodos() {
+        const usuarios = await this.usuarioService.listarTodos();
+        return {
+            total: usuarios.length,
+            usuarios
+        };
+    }
+
+    async buscarPorId(id) {
+        return await this.usuarioService.buscarPorId(id);
+    }
+
+    async buscarPorEmail(email) {
+        return await this.usuarioService.buscarPorEmail(email);
+    }
+
+    async deletar(id) {
+        await this.usuarioService.deletar(id);
+        return {
+            mensagem: 'Usuário deletado com sucesso!'
+        };
+    }
+}
 
 class UsuarioService {
     constructor(database) {
@@ -120,4 +158,4 @@ class UsuarioService {
     }
 }
 
-module.exports = UsuarioService;
+module.exports = UsuarioController;
