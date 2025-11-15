@@ -7,36 +7,66 @@ class UsuarioController {
         this.usuarioService = new UsuarioService(dataBase);
     }
 
-    async criar(dados) {
-        const { nome, email, senha } = dados;
-        const usuario = await this.usuarioService.criar(nome, email, senha);
-        return {
-            mensagem: 'Usuário criado com sucesso!',
-            usuario
-        };
+    async criar(req, res) {
+        try {
+            const { nome, email, senha } = req.body;
+            const usuario = await this.usuarioService.criar(nome, email, senha);
+            res.status(201).json({
+                mensagem: 'Usuário criado com sucesso!',
+                usuario
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao criar usuário', error);
+            throw error;
+        }
     }
 
-    async listarTodos() {
-        const usuarios = await this.usuarioService.listarTodos();
-        return {
-            total: usuarios.length,
-            usuarios
-        };
+    async listarTodos(req, res) {
+        try {
+            const usuarios = await this.usuarioService.listarTodos();
+            res.json({
+                total: usuarios.length,
+                usuarios
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao listar usuários', error);
+            throw error;
+        }
     }
 
-    async buscarPorId(id) {
-        return await this.usuarioService.buscarPorId(id);
+    async buscarPorId(req, res) {
+        try {
+            const { id } = req.params;
+            const usuario = await this.usuarioService.buscarPorId(id);
+            res.json(usuario);
+        } catch (error) {
+            Logger.error('Erro no controller ao buscar usuário', error);
+            throw error;
+        }
     }
 
-    async buscarPorEmail(email) {
-        return await this.usuarioService.buscarPorEmail(email);
+    async buscarPorEmail(req, res) {
+        try {
+            const { email } = req.params;
+            const usuario = await this.usuarioService.buscarPorEmail(email);
+            res.json(usuario);
+        } catch (error) {
+            Logger.error('Erro no controller ao buscar usuário por email', error);
+            throw error;
+        }
     }
 
-    async deletar(id) {
-        await this.usuarioService.deletar(id);
-        return {
-            mensagem: 'Usuário deletado com sucesso!'
-        };
+    async deletar(req, res) {
+        try {
+            const { id } = req.params;
+            await this.usuarioService.deletar(id);
+            res.json({
+                mensagem: 'Usuário deletado com sucesso!'
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao deletar usuário', error);
+            throw error;
+        }
     }
 }
 

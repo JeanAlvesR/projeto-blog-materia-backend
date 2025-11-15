@@ -7,28 +7,45 @@ class ComentarioController {
         this.comentarioService = new ComentarioService(dataBase);
     }
 
-    async criar(dados) {
-        const { postagemId, usuarioId, conteudo } = dados;
-        const comentario = await this.comentarioService.criar(postagemId, usuarioId, conteudo);
-        return {
-            mensagem: 'Comentário criado com sucesso!',
-            comentario
-        };
+    async criar(req, res) {
+        try {
+            const { postagemId, usuarioId, conteudo } = req.body;
+            const comentario = await this.comentarioService.criar(postagemId, usuarioId, conteudo);
+            res.status(201).json({
+                mensagem: 'Comentário criado com sucesso!',
+                comentario
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao criar comentário', error);
+            throw error;
+        }
     }
 
-    async listarPorPostagem(postagemId) {
-        const comentarios = await this.comentarioService.listarPorPostagem(postagemId);
-        return {
-            total: comentarios.length,
-            comentarios
-        };
+    async listarPorPostagem(req, res) {
+        try {
+            const { id } = req.params;
+            const comentarios = await this.comentarioService.listarPorPostagem(id);
+            res.json({
+                total: comentarios.length,
+                comentarios
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao listar comentários', error);
+            throw error;
+        }
     }
 
-    async deletar(id) {
-        await this.comentarioService.deletar(id);
-        return {
-            mensagem: 'Comentário deletado com sucesso!'
-        };
+    async deletar(req, res) {
+        try {
+            const { id } = req.params;
+            await this.comentarioService.deletar(id);
+            res.json({
+                mensagem: 'Comentário deletado com sucesso!'
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao deletar comentário', error);
+            throw error;
+        }
     }
 }
 

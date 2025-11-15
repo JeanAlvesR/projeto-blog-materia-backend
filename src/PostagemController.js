@@ -7,57 +7,98 @@ class PostagemController {
         this.postagemService = new PostagemService(dataBase);
     }
 
-    async criar(dados) {
-        const { usuarioId, conteudo } = dados;
-        const postagem = await this.postagemService.criar(usuarioId, conteudo);
-        return {
-            mensagem: 'Postagem publicada com sucesso!',
-            postagem
-        };
+    async criar(req, res) {
+        try {
+            const { usuarioId, conteudo } = req.body;
+            const postagem = await this.postagemService.criar(usuarioId, conteudo);
+            res.status(201).json({
+                mensagem: 'Postagem publicada com sucesso!',
+                postagem
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao criar postagem', error);
+            throw error;
+        }
     }
 
-    async listarTodas() {
-        const postagens = await this.postagemService.listarTodas();
-        return {
-            total: postagens.length,
-            postagens
-        };
+    async listarTodas(req, res) {
+        try {
+            const postagens = await this.postagemService.listarTodas();
+            res.json({
+                total: postagens.length,
+                postagens
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao listar postagens', error);
+            throw error;
+        }
     }
 
-    async buscarPorTermo(termo) {
-        const postagens = await this.postagemService.buscarPorTermo(termo);
-        return {
-            termo,
-            total: postagens.length,
-            postagens
-        };
+    async buscarPorTermo(req, res) {
+        try {
+            const { termo } = req.query;
+            const postagens = await this.postagemService.buscarPorTermo(termo);
+            res.json({
+                termo,
+                total: postagens.length,
+                postagens
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao buscar postagens', error);
+            throw error;
+        }
     }
 
-    async buscarPorId(id) {
-        return await this.postagemService.buscarPorId(id);
+    async buscarPorId(req, res) {
+        try {
+            const { id } = req.params;
+            const postagem = await this.postagemService.buscarPorId(id);
+            res.json(postagem);
+        } catch (error) {
+            Logger.error('Erro no controller ao buscar postagem', error);
+            throw error;
+        }
     }
 
-    async atualizar(id, dados) {
-        const postagem = await this.postagemService.atualizar(id, dados);
-        return {
-            mensagem: 'Postagem atualizada com sucesso!',
-            postagem
-        };
+    async atualizar(req, res) {
+        try {
+            const { id } = req.params;
+            const postagem = await this.postagemService.atualizar(id, req.body);
+            res.json({
+                mensagem: 'Postagem atualizada com sucesso!',
+                postagem
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao atualizar postagem', error);
+            throw error;
+        }
     }
 
-    async deletar(id) {
-        await this.postagemService.deletar(id);
-        return {
-            mensagem: 'Postagem deletada com sucesso!'
-        };
+    async deletar(req, res) {
+        try {
+            const { id } = req.params;
+            await this.postagemService.deletar(id);
+            res.json({
+                mensagem: 'Postagem deletada com sucesso!'
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao deletar postagem', error);
+            throw error;
+        }
     }
 
-    async darLike(id) {
-        const postagem = await this.postagemService.darLike(id);
-        return {
-            mensagem: 'Like adicionado com sucesso!',
-            postagem
-        };
+    async darLike(req, res) {
+        try {
+            const { id } = req.params;
+            const postagem = await this.postagemService.darLike(id);
+            res.json({
+                mensagem: 'Like adicionado com sucesso!',
+                postagem
+            });
+        } catch (error) {
+            Logger.error('Erro no controller ao dar like', error);
+            throw error;
+        }
     }
 }
 
