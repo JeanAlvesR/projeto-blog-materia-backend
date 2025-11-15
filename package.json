@@ -10,6 +10,8 @@
   "author": "Jean Alves Rocha",
   "license": "ISC",
   "dependencies": {
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
     "mongodb": "^6.20.0"
   }
 }
