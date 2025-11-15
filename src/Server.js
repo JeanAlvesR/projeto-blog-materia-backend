@@ -1,121 +1,231 @@
-const http = require('http');
+const express = require('express');
+const session = require('express-session');
 const Database = require('./Database');
 const UsuarioController = require('./UsuarioController');
 const PostagemController = require('./PostagemController');
 const ComentarioController = require('./ComentarioController');
+const AuthController = require('./AuthController');
+const { verificarAutenticacao } = require('./AuthMiddleware');
 const Logger = require('./Logger');
 
 class Server {
     constructor() {
         this.port = 3000;
         this.database = new Database();
+        this.app = express();
         this.server = null;
     }
 
-    async start() {
-        await this.database.connect();
+    configurarMiddlewares() {
+        // Middleware para parsing de JSON
+        this.app.use(express.json());
+        this.app.use(express.urlencoded({ extended: true }));
 
+        // Configurar sessões
+        this.app.use(session({
+            secret: 'projeto-blog-backend-secret-key-2024',
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                secure: false, // true apenas com HTTPS
+                httpOnly: true,
+                maxAge: 1000 * 60 * 60 * 24 // 24 horas
+            }
+        }));
+
+        // Middleware de logging
+        this.app.use((req, res, next) => {
+            Logger.info(`${req.method} ${req.path}`);
+            next();
+        });
+    }
+
+    configurarRotas() {
         const usuarioController = new UsuarioController(this.database);
         const postagemController = new PostagemController(this.database);
         const comentarioController = new ComentarioController(this.database);
+        const authController = new AuthController(this.database);
 
-        const router = new Router(usuarioController, postagemController, comentarioController);
-
-        this.server = http.createServer((req, res) => {
-            router.handle(req, res);
-        });
-
-        this.server.listen(this.port, () => {
-            this.showBanner();
-        });
-
-        this.setupGracefulShutdown();
-    }
-
-    showBanner() {
-        console.log(`\n🚀 Servidor rodando na porta ${this.port}`);
-        console.log(`📝 Acesse: http://localhost:${this.port}`);
-        console.log('\n📦 3 Coleções: usuarios, postagens, comentarios\n');
-        console.log('💡 Rotas - USUÁRIOS:');
-        console.log('   GET    /usuarios               - Listar todos');
-        console.log('   POST   /usuarios               - Criar usuário');
-        console.log('   GET    /usuarios/:id           - Buscar por ID');
-        console.log('   DELETE /usuarios/:id           - Deletar');
-        console.log('\n💡 Rotas - POSTAGENS:');
-        console.log('   GET    /postagens              - Listar todas');
-        console.log('   POST   /postagens              - Criar postagem');
-        console.log('   GET    /postagens/buscar       - Buscar por termo');
-        console.log('   GET    /postagens/:id          - Buscar por ID');
-        console.log('   PUT    /postagens/:id          - Atualizar');
-        console.log('   POST   /postagens/:id/like     - Dar like');
-        console.log('   DELETE /postagens/:id          - Deletar');
-        console.log('\n💡 Rotas - COMENTÁRIOS:');
-        console.log('   GET    /postagens/:id/comentarios  - Listar');
-        console.log('   POST   /comentarios                - Criar');
-        console.log('   DELETE /comentarios/:id            - Deletar\n');
-        
-        Logger.info('Servidor iniciado com sucesso');
-    }
-
-    setupGracefulShutdown() {
-        process.on('SIGINT', async () => {
-            console.log('\n\n⏳ Encerrando servidor...');
-            Logger.info('Servidor encerrado');
-            if (this.server) {
-                this.server.close();
-            }
-            await this.database.close();
-            process.exit(0);
-        });
-    }
-}
-class Router {
-    constructor(usuarioController, postagemController, comentarioController) {
-        this.usuarioController = usuarioController;
-        this.postagemController = postagemController;
-        this.comentarioController = comentarioController;
-    }
-
-    async parseBody(req) {
-        return new Promise((resolve, reject) => {
-            let body = '';
-            req.on('data', chunk => {
-                body += chunk.toString();
-            });
-            req.on('end', () => {
-                try {
-                    resolve(body ? JSON.parse(body) : {});
-                } catch (error) {
-                    reject(new Error('JSON inválido'));
+        // Rota inicial (não precisa autenticação)
+        this.app.get('/', (req, res) => {
+            res.json({
+                mensagem: 'API de Micro-blogging com Autenticação',
+                colecoes: ['usuarios', 'postagens', 'comentarios'],
+                autenticacao: {
+                    'POST /auth/login': 'Fazer login',
+                    'POST /auth/logout': 'Fazer logout',
+                    'GET /auth/sessao': 'Verificar sessão'
+                },
+                rotas: {
+                    usuarios: {
+                        'POST /usuarios': 'Criar usuário (público)',
+                        'GET /usuarios': 'Listar todos (autenticado)',
+                        'GET /usuarios/:id': 'Buscar por ID (autenticado)',
+                        'GET /usuarios/email/:email': 'Buscar por email (autenticado)',
+                        'DELETE /usuarios/:id': 'Deletar (autenticado)'
+                    },
+                    postagens: {
+                        'GET /postagens': 'Listar todas (público)',
+                        'GET /postagens/buscar?termo=xxx': 'Buscar (público)',
+                        'GET /postagens/:id': 'Buscar por ID (público)',
+                        'POST /postagens': 'Criar (autenticado)',
+                        'PUT /postagens/:id': 'Atualizar (autenticado)',
+                        'POST /postagens/:id/like': 'Dar like (autenticado)',
+                        'DELETE /postagens/:id': 'Deletar (autenticado)'
+                    },
+                    comentarios: {
+                        'GET /postagens/:id/comentarios': 'Listar (público)',
+                        'POST /comentarios': 'Criar (autenticado)',
+                        'DELETE /comentarios/:id': 'Deletar (autenticado)'
+                    }
                 }
             });
-            req.on('error', reject);
+        });
+
+        // ==================== ROTAS DE AUTENTICAÇÃO ====================
+        this.app.post('/auth/login', (req, res) => authController.login(req, res));
+        this.app.post('/auth/logout', (req, res) => authController.logout(req, res));
+        this.app.get('/auth/sessao', (req, res) => authController.verificarSessao(req, res));
+
+        // ==================== ROTAS DE USUÁRIOS ====================
+        // Criar usuário (público - não precisa estar autenticado)
+        this.app.post('/usuarios', async (req, res) => {
+            try {
+                const resultado = await usuarioController.criar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // Rotas que precisam autenticação
+        this.app.get('/usuarios', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await usuarioController.listarTodos(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.get('/usuarios/:id', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await usuarioController.buscarPorId(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.get('/usuarios/email/:email', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await usuarioController.buscarPorEmail(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.delete('/usuarios/:id', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await usuarioController.deletar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // ==================== ROTAS DE POSTAGENS ====================
+        // Rotas públicas
+        this.app.get('/postagens', async (req, res) => {
+            try {
+                const resultado = await postagemController.listarTodas(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.get('/postagens/buscar', async (req, res) => {
+            try {
+                const resultado = await postagemController.buscarPorTermo(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.get('/postagens/:id', async (req, res) => {
+            try {
+                const resultado = await postagemController.buscarPorId(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // Rotas que precisam autenticação
+        this.app.post('/postagens', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await postagemController.criar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.put('/postagens/:id', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await postagemController.atualizar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.post('/postagens/:id/like', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await postagemController.darLike(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.delete('/postagens/:id', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await postagemController.deletar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // ==================== ROTAS DE COMENTÁRIOS ====================
+        // Rota pública
+        this.app.get('/postagens/:id/comentarios', async (req, res) => {
+            try {
+                const resultado = await comentarioController.listarPorPostagem(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // Rotas que precisam autenticação
+        this.app.post('/comentarios', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await comentarioController.criar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        this.app.delete('/comentarios/:id', verificarAutenticacao, async (req, res) => {
+            try {
+                const resultado = await comentarioController.deletar(req, res);
+            } catch (error) {
+                this.handleError(res, error);
+            }
+        });
+
+        // Rota 404
+        this.app.use((req, res) => {
+            res.status(404).json({ erro: 'Rota não encontrada' });
         });
     }
 
-    parseUrl(url) {
-        const [path, queryString] = url.split('?');
-        const query = {};
-
-        if (queryString) {
-            queryString.split('&').forEach(param => {
-                const [key, value] = param.split('=');
-                query[decodeURIComponent(key)] = decodeURIComponent(value || '');
-            });
-        }
-
-        return { path, query };
-    }
-
-    sendResponse(res, statusCode, data) {
-        res.writeHead(statusCode, {
-            'Content-Type': 'application/json; charset=utf-8'
-        });
-        res.end(JSON.stringify(data, null, 2));
-    }
-
-    sendError(res, statusCode, mensagem) {
-        this.sendResponse(res, statusCode, { erro: mensagem });
+    handleError(res, error) {
+        Logger.error('Erro na requisição', error);
+        const statusCode = this.getStatusCode(error.message);
+        res.status(statusCode).json({ erro: error.message });
     }
 
     getStatusCode(errorMessage) {
@@ -133,125 +243,59 @@ class Router {
         return 500;
     }
 
-    async handleHome(req, res) {
-        this.sendResponse(res, 200, {
-            mensagem: 'API de Micro-blogging',
-            colecoes: ['usuarios', 'postagens', 'comentarios'],
-            rotas: {
-                usuarios: {
-                    'GET /usuarios': 'Listar todos os usuários',
-                    'GET /usuarios/:id': 'Buscar usuário por ID',
-                    'GET /usuarios/email/:email': 'Buscar usuário por email',
-                    'POST /usuarios': 'Criar usuário',
-                    'DELETE /usuarios/:id': 'Deletar usuário'
-                },
-                postagens: {
-                    'GET /postagens': 'Listar todas as postagens',
-                    'GET /postagens/buscar?termo=xxx': 'Buscar postagens',
-                    'GET /postagens/:id': 'Buscar postagem por ID',
-                    'POST /postagens': 'Criar postagem',
-                    'PUT /postagens/:id': 'Atualizar postagem',
-                    'POST /postagens/:id/like': 'Dar like',
-                    'DELETE /postagens/:id': 'Deletar postagem'
-                },
-                comentarios: {
-                    'GET /postagens/:id/comentarios': 'Listar comentários da postagem',
-                    'POST /comentarios': 'Criar comentário',
-                    'DELETE /comentarios/:id': 'Deletar comentário'
-                }
+    async start() {
+        await this.database.connect();
+
+        this.configurarMiddlewares();
+        this.configurarRotas();
+
+        this.server = this.app.listen(this.port, () => {
+            this.showBanner();
+        });
+
+        this.setupGracefulShutdown();
+    }
+
+    showBanner() {
+        console.log(`\n🚀 Servidor Express rodando na porta ${this.port}`);
+        console.log(`📝 Acesse: http://localhost:${this.port}`);
+        console.log('\n📦 3 Coleções: usuarios, postagens, comentarios\n');
+        console.log('🔐 Rotas - AUTENTICAÇÃO:');
+        console.log('   POST   /auth/login             - Fazer login');
+        console.log('   POST   /auth/logout            - Fazer logout');
+        console.log('   GET    /auth/sessao            - Verificar sessão');
+        console.log('\n💡 Rotas - USUÁRIOS:');
+        console.log('   POST   /usuarios               - Criar (público)');
+        console.log('   GET    /usuarios               - Listar (autenticado)');
+        console.log('   GET    /usuarios/:id           - Buscar por ID (autenticado)');
+        console.log('   DELETE /usuarios/:id           - Deletar (autenticado)');
+        console.log('\n💡 Rotas - POSTAGENS:');
+        console.log('   GET    /postagens              - Listar (público)');
+        console.log('   POST   /postagens              - Criar (autenticado)');
+        console.log('   GET    /postagens/buscar       - Buscar por termo (público)');
+        console.log('   GET    /postagens/:id          - Buscar por ID (público)');
+        console.log('   PUT    /postagens/:id          - Atualizar (autenticado)');
+        console.log('   POST   /postagens/:id/like     - Dar like (autenticado)');
+        console.log('   DELETE /postagens/:id          - Deletar (autenticado)');
+        console.log('\n💡 Rotas - COMENTÁRIOS:');
+        console.log('   GET    /postagens/:id/comentarios  - Listar (público)');
+        console.log('   POST   /comentarios                - Criar (autenticado)');
+        console.log('   DELETE /comentarios/:id            - Deletar (autenticado)\n');
+
+        Logger.info('Servidor Express iniciado com sucesso');
+    }
+
+    setupGracefulShutdown() {
+        process.on('SIGINT', async () => {
+            console.log('\n\n⏳ Encerrando servidor...');
+            Logger.info('Servidor encerrado');
+            if (this.server) {
+                this.server.close();
             }
+            await this.database.close();
+            process.exit(0);
         });
     }
-
-    async handle(req, res) {
-        const { path, query } = this.parseUrl(req.url);
-        const method = req.method;
-
-        try {
-            if (path === '/' && method === 'GET') {
-                await this.handleHome(req, res);
-            }
-            else if (path === '/usuarios' && method === 'GET') {
-                const resultado = await this.usuarioController.listarTodos();
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path === '/usuarios' && method === 'POST') {
-                const body = await this.parseBody(req);
-                const resultado = await this.usuarioController.criar(body);
-                this.sendResponse(res, 201, resultado);
-            }
-            else if (path.match(/^\/usuarios\/[^\/]+$/) && method === 'GET') {
-                const id = path.split('/')[2];
-                const resultado = await this.usuarioController.buscarPorId(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/usuarios\/email\/.+$/) && method === 'GET') {
-                const email = decodeURIComponent(path.split('/')[3]);
-                const resultado = await this.usuarioController.buscarPorEmail(email);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/usuarios\/[^\/]+$/) && method === 'DELETE') {
-                const id = path.split('/')[2];
-                const resultado = await this.usuarioController.deletar(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path === '/postagens' && method === 'GET') {
-                const resultado = await this.postagemController.listarTodas();
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path === '/postagens' && method === 'POST') {
-                const body = await this.parseBody(req);
-                const resultado = await this.postagemController.criar(body);
-                this.sendResponse(res, 201, resultado);
-            }
-            else if (path === '/postagens/buscar' && method === 'GET') {
-                const resultado = await this.postagemController.buscarPorTermo(query.termo);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/postagens\/[^\/]+\/like$/) && method === 'POST') {
-                const id = path.split('/')[2];
-                const resultado = await this.postagemController.darLike(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/postagens\/[^\/]+\/comentarios$/) && method === 'GET') {
-                const postagemId = path.split('/')[2];
-                const resultado = await this.comentarioController.listarPorPostagem(postagemId);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/postagens\/[^\/]+$/) && method === 'GET') {
-                const id = path.split('/')[2];
-                const resultado = await this.postagemController.buscarPorId(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/postagens\/[^\/]+$/) && method === 'PUT') {
-                const id = path.split('/')[2];
-                const body = await this.parseBody(req);
-                const resultado = await this.postagemController.atualizar(id, body);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path.match(/^\/postagens\/[^\/]+$/) && method === 'DELETE') {
-                const id = path.split('/')[2];
-                const resultado = await this.postagemController.deletar(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else if (path === '/comentarios' && method === 'POST') {
-                const body = await this.parseBody(req);
-                const resultado = await this.comentarioController.criar(body);
-                this.sendResponse(res, 201, resultado);
-            }
-            else if (path.match(/^\/comentarios\/[^\/]+$/) && method === 'DELETE') {
-                const id = path.split('/')[2];
-                const resultado = await this.comentarioController.deletar(id);
-                this.sendResponse(res, 200, resultado);
-            }
-            else {
-                this.sendError(res, 404, 'Rota não encontrada');
-            }
-        } catch (error) {
-            Logger.error(`Erro na rota ${method} ${path}`, error);
-            const statusCode = this.getStatusCode(error.message);
-            this.sendError(res, statusCode, error.message);
-        }
-    }
 }
+
 module.exports = Server;
